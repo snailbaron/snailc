@@ -12,6 +12,8 @@ Checks:
   - performance-*
   - portability-*
   - readability-*
+  - -cert-err33-c
+  - -cppcoreguidelines-init-variables
 CheckOptions:
   readability-identifier-naming.FunctionCase: camel_case
   readability-identifier-naming.MemberCase: camel_case

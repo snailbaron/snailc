@@ -3,55 +3,45 @@
 #include <stdlib.h>
 #include <string.h>
 
-void str_copy(char** pdest, const char* const src)
+char* str_dup(const char* src)
 {
-    if (pdest == NULL) {
-        return;
-    }
-
-    if (*pdest != NULL) {
-        free(*pdest);
-        *pdest = NULL;
-    }
-
-    if (src == NULL) {
-        return;
-    }
-
     size_t n = strlen(src) + 1;
-    *pdest = malloc(n);
-    strncpy(*pdest, src, n);
+    char* dst = malloc(n);
+    if (dst != NULL) {
+        memcpy(dst, src, n);
+    }
+    return dst;
 }
 
-bool str_read(char** pdest, FILE* stream, long start, size_t len)
+void str_buffer_clear(str_buffer_t* b)
 {
-    if (pdest == NULL) {
-        return true;
+    if (b->ptr != NULL) {
+        free(b->ptr);
+    }
+    *b = (str_buffer_t){0};
+}
+
+bool str_buffer_putc(str_buffer_t* b, int c)
+{
+    if (b->len >= b->cap) {
+        size_t new_cap = (2 * b->cap) + 1;
+        char* buf = realloc(b->ptr, new_cap);
+        if (buf == NULL) {
+            fprintf(stderr, "str_buffer_putc: failed to reallocate\n");
+            return false;
+        }
+
+        b->ptr = buf;
+        b->cap = new_cap;
     }
 
-    if (stream == NULL) {
-        (void)fputs("str_read: file stream is NULL", stderr);
-    }
-
-    if (*pdest != NULL) {
-        free(*pdest);
-        *pdest = NULL;
-    }
-
-    if (fseek(stream, start, SEEK_SET) != 0) {
-        (void)fputs("str_read: failed to fseek to position", stderr);
-        return false;
-    }
-    *pdest = malloc(len + 1);
-    if (*pdest == NULL) {
-        (void)fputs("str_read: failed to allocate memory for storage", stderr);
-        return false;
-    }
-    (*pdest)[len] = '\0';
-    if (fread(*pdest, 1, len, stream) != len) {
-        (void)fputs("str_read: failed to read from file", stderr);
-        return false;
-    }
-
+    b->ptr[b->len++] = (char)c;
     return true;
+}
+
+char* str_buffer_release(str_buffer_t* b)
+{
+    char* ptr = b->ptr;
+    *b = (str_buffer_t){0};
+    return ptr;
 }

@@ -12,7 +12,7 @@ static int isword(int c)
     return isalnum(c) || c == '_';
 }
 
-static const char* keywords[] = {
+static const char* const keywords[] = {
     "auto", "break", "case", "char", "const", "continue", "default", "do",
     "double", "else", "enum", "extern", "float", "for", "goto", "if", "inline",
     "int", "long", "register", "restrict", "return", "short", "signed",
@@ -63,13 +63,6 @@ typedef struct {
     char* text;
 } token_t;
 
-static void token_create(token_t* t, token_type_t type, const char* text)
-{
-    t->type = type;
-    t->text = NULL;
-    str_copy(&t->text, text);
-}
-
 static void token_clear(token_t* t)
 {
     if (t->text != NULL) {
@@ -80,22 +73,24 @@ static void token_clear(token_t* t)
 
 static bool parse_whitespace(FILE* in)
 {
-    for (int c = 0; (c = fgetc(in)) != EOF; ) {
-        if (!isspace(c)) {
-            if (fseek(in, -1, SEEK_CUR) != 0) {
-                (void)fputs("cannot seek -1", stderr);
-                return false;
-            }
-            return true;
+    int c;
+    do {
+        c = fgetc(in);
+    } while (isspace(c));
+
+    if (c != EOF) {
+        if (ungetc(c, in) == EOF) {
+            fprintf(stderr, "parse_whitespace: ungetc failed after a fgetc!\n");
+            return false;
         }
     }
+
     return true;
 }
 
 static bool parse_token(FILE* in, token_t* token)
 {
     token_clear(token);
-    long start = ftell(in);
 
     int c = fgetc(in);
     if (c == EOF) {
@@ -103,57 +98,87 @@ static bool parse_token(FILE* in, token_t* token)
     }
 
     if (c == '(') {
-        token_create(token, TOKEN_TYPE_PAREN_OPEN, "(");
+        *token = (token_t){.type = TOKEN_TYPE_PAREN_OPEN};
         return true;
     }
     if (c == ')') {
-        token_create(token, TOKEN_TYPE_PAREN_CLOSE, ")");
+        *token = (token_t){.type = TOKEN_TYPE_PAREN_CLOSE};
         return true;
     }
     if (c == '{') {
-        token_create(token, TOKEN_TYPE_BRACE_OPEN, "{");
+        *token = (token_t){.type = TOKEN_TYPE_BRACE_OPEN};
         return true;
     }
     if (c == '}') {
-        token_create(token, TOKEN_TYPE_BRACE_CLOSE, "}");
+        *token = (token_t){.type = TOKEN_TYPE_BRACE_CLOSE};
         return true;
     }
     if (c == ';') {
-        token_create(token, TOKEN_TYPE_SEMICOLON, ";");
+        *token = (token_t){.type = TOKEN_TYPE_SEMICOLON};
         return true;
     }
 
     if (isdigit(c)) {
+        str_buffer_t buffer = {0};
+
         while (isdigit(c)) {
+            if (!str_buffer_putc(&buffer, c)) {
+                str_buffer_clear(&buffer);
+                return false;
+            }
             c = fgetc(in);
         }
-        long end = ftell(in) - 1;
+        if (c != EOF) {
+            if (ungetc(c, in) == EOF) {
+                str_buffer_clear(&buffer);
+                fprintf(stderr, "failed to ungetc\n");
+                return false;
+            }
+        }
 
-        token->type = TOKEN_TYPE_CONSTANT;
-        if (!str_read(&token->text, in, start, end - start)) {
+        if (!str_buffer_putc(&buffer, '\0')) {
+            str_buffer_clear(&buffer);
             return false;
         }
 
         if (isword(c)) {
-            (void)fprintf(
+            str_buffer_clear(&buffer);
+            fprintf(
                 stderr,
                 "expected a word boundary after constant '%s', got '%c'\n",
-                token->text, c);
+                buffer.ptr, c);
             return false;
         }
+
+        token->text = str_buffer_release(&buffer);
+        token->type = TOKEN_TYPE_CONSTANT;
 
         return true;
     }
 
     if (isalpha(c) || c == '_') {
+        str_buffer_t buffer = {0};
+
         while (isword(c)) {
+            if (!str_buffer_putc(&buffer, c)) {
+                str_buffer_clear(&buffer);
+                return false;
+            }
             c = fgetc(in);
         }
-        long end = ftell(in) - 1;
+        if (c != EOF) {
+            if (ungetc(c, in) == EOF) {
+                str_buffer_clear(&buffer);
+                fprintf(stderr, "failed to ungetc\n");
+                return false;
+            }
+        }
 
-        if (!str_read(&token->text, in, start, end - start)) {
+        if (!str_buffer_putc(&buffer, '\0')) {
+            str_buffer_clear(&buffer);
             return false;
         }
+        token->text = str_buffer_release(&buffer);
 
         if (is_keyword(token->text)) {
             token->type = TOKEN_TYPE_KEYWORD;
@@ -164,7 +189,7 @@ static bool parse_token(FILE* in, token_t* token)
         return true;
     }
 
-    (void)fprintf(stderr, "unexpected symbol: '%c'\n", c);
+    fprintf(stderr, "unexpected symbol: '%c'\n", c);
     return false;
 }
 
@@ -174,19 +199,17 @@ typedef struct {
     token_t* ptr;
 } tokens_t;
 
-static void tokens_create(tokens_t* ts)
-{
-    ts->len = 0;
-    ts->cap = 0;
-    ts->ptr = NULL;
-}
-
 static void tokens_clear(tokens_t* ts)
 {
     if (ts->ptr != NULL) {
+        for (size_t i = 0; i < ts->len; i++) {
+            token_clear(&ts->ptr[i]);
+        }
         free(ts->ptr);
         ts->ptr = NULL;
     }
+    ts->len = 0;
+    ts->cap = 0;
 }
 
 static bool tokens_add(tokens_t* ts, token_t t)
@@ -196,7 +219,7 @@ static bool tokens_add(tokens_t* ts, token_t t)
 
         token_t* buf = realloc(ts->ptr, ts->cap * sizeof(token_t));
         if (buf == NULL) {
-            (void)fputs("failed to allocate more tokens", stderr);
+            fprintf(stderr, "failed to allocate more tokens\n");
             return false;
         }
         ts->ptr = buf;
@@ -218,12 +241,13 @@ static bool tokenize_stream(FILE* in, tokens_t* out)
             break;
         }
 
-        token_t token;
-        token_create(&token, TOKEN_TYPE_UNKNOWN, NULL);
+        token_t token = {0};
         if (!parse_token(in, &token)) {
             return false;
         }
-        tokens_add(out, token);
+        if (!tokens_add(out, token)) {
+            return false;
+        }
     }
 
     return true;
@@ -233,19 +257,21 @@ static bool tokenize(const char* file_path, tokens_t* ts)
 {
     FILE* file = fopen(file_path, "r");
     if (file == NULL) {
-        (void)fprintf(
-            stderr, "failed to open file '%s' (errno = %d)", file_path, errno);
+        fprintf(
+            stderr, "failed to open file '%s' (errno = %d)\n",
+            file_path, errno);
         return false;
     }
 
     if (!tokenize_stream(file, ts)) {
-        (void)fclose(file);
+        fclose(file);
         return false;
     }
 
     if (fclose(file) == EOF) {
-        (void)fprintf(
-            stderr, "failed to close file '%s' (errno = %d)", file_path, errno);
+        fprintf(
+            stderr, "failed to close file '%s' (errno = %d)\n",
+            file_path, errno);
         return false;
     }
 
@@ -255,19 +281,24 @@ static bool tokenize(const char* file_path, tokens_t* ts)
 int main(int argc, char* argv[])
 {
     if (argc != 2) {
-        (void)fprintf(stderr, "usage: lexer FILE\n");
+        fprintf(stderr, "usage: lexer FILE\n");
         return EXIT_FAILURE;
     }
     const char* file_path = argv[1];
 
-    tokens_t ts;
-    tokens_create(&ts);
+    tokens_t ts = {0};
     if (!tokenize(file_path, &ts)) {
         return EXIT_FAILURE;
     }
 
     for (size_t i = 0; i < ts.len; i++) {
         const token_t* t = &ts.ptr[i];
-        printf("%s : %s\n", token_type_string(t->type), t->text);
+        printf("%s", token_type_string(t->type));
+        if (t->text != NULL) {
+            printf(" : %s", t->text);
+        }
+        printf("\n");
     }
+
+    tokens_clear(&ts);
 }
