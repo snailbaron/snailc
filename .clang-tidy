@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://www.schemastore.org/clang-tidy.json
+---
+Checks:
+  - bugprone-*
+  - cert-*
+  - clang-analyzer-*
+  - concurrency-*
+  - cppcoreguidelines-*
+  - hicpp-*
+  - misc-*
+  - modernize-*
+  - performance-*
+  - portability-*
+  - readability-*
+CheckOptions:
+  readability-identifier-naming.FunctionCase: camel_case
+  readability-identifier-naming.MemberCase: camel_case
+  readability-identifier-naming.StructCase: camel_case
+  readability-identifier-naming.StructSuffix: _t
+  readability-identifier-naming.VariableCase: camel_case
