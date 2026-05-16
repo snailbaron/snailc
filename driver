@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+temp=$(getopt -o '' --long 'lex,parse,codegen' -n 'driver' -- "$@")
+if [ $? -ne 0 ]; then
+    >&2 echo "terminating..."
+    exit 1
+fi
+
+eval set -- "${temp}"
+unset temp
+
+function print_usage {
+    >&2 echo "usage: driver [--lex] [--parse] [--codegen] FILE"
+    >&2 echo ""
+    >&2 echo "options:"
+    >&2 echo "  --lex      run the lexer"
+    >&2 echo "  --parse    run the parser, implies --lex"
+    >&2 echo "  --codegen  run code generation, implies --lex --parse"
+}
+
+do_lex=0
+do_parse=0
+do_codegen=0
+while true; do
+    case "$1" in
+        '--lex')
+            do_lex=1
+            shift
+            continue
+        ;;
+        '--parse')
+            do_lex=1
+            do_parse=1
+            shift
+            continue
+        ;;
+        '--codegen')
+            do_lex=1
+            do_parse=1
+            do_codegen=1
+            shift
+            continue
+        ;;
+        '--')
+            shift
+            break
+        ;;
+        *)
+            >&2 echo "internal error!"
+            exit 1
+        ;;
+    esac
+done
+
+if [ "$#" -eq 0 ]; then
+    >&2 echo "source file required"
+    print_usage
+    exit 1
+fi
+
+if [ "$#" -gt 1 ]; then
+    >&2 echo "too many positional arguments: " "$@"
+    print_usage
+    exit 1
+fi
+source_file="$1"
+
+stem="${source_file%.*}"
+preprocessed_file="${stem}.i"
+assembly_file="${stem}.s"
+
+echo -- gcc -E -P "${source_file}" -o "${preprocessed_file}"
+# compile preprocessed_file, output assembly_file
+echo -- gcc "${assembly_file}" -o "${stem}"
