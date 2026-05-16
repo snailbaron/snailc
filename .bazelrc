@@ -1,0 +1,8 @@
+build --copt=-std=c99
+build --copt=-fdiagnostics-color
+build --copt=-Werror
+build --copt=-Wall --copt=-Wextra --copt=-Wpedantic
+
+build --compilation_mode=dbg
+
+build:release --compilation_mode=opt
