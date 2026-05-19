@@ -1,5 +1,6 @@
 #include "strings.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,6 +9,7 @@ char* str_dup(const char* src)
     size_t n = strlen(src) + 1;
     char* dst = malloc(n);
     if (dst != NULL) {
+        fprintf(stderr, "str_dup: failed to allocate memory for new string\n");
         memcpy(dst, src, n);
     }
     return dst;

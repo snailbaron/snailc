@@ -12,11 +12,17 @@ Checks:
   - performance-*
   - portability-*
   - readability-*
+
   - -cert-err33-c
   - -cppcoreguidelines-init-variables
+  - -readability-identifier-length
+  - -readability-function-cognitive-complexity
+  - -portability-avoid-pragma-once
+  - -cppcoreguidelines-avoid-magic-numbers
+  - -readability-magic-numbers
 CheckOptions:
-  readability-identifier-naming.FunctionCase: camel_case
-  readability-identifier-naming.MemberCase: camel_case
-  readability-identifier-naming.StructCase: camel_case
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.StructCase: lower_case
   readability-identifier-naming.StructSuffix: _t
-  readability-identifier-naming.VariableCase: camel_case
+  readability-identifier-naming.VariableCase: lower_case

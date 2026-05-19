@@ -73,19 +73,26 @@ static void token_clear(token_t* t)
 
 static bool parse_whitespace(FILE* in)
 {
-    int c;
-    do {
-        c = fgetc(in);
-    } while (isspace(c));
+    for (;;) {
+        int c = fgetc(in);
+        if (c == EOF) {
+            if (ferror(in)) {
+                fprintf(stderr, "parse_whitespace: stream error\n");
+                return false;
+            }
+            return true;
+        }
 
-    if (c != EOF) {
-        if (ungetc(c, in) == EOF) {
-            fprintf(stderr, "parse_whitespace: ungetc failed after a fgetc!\n");
-            return false;
+        // clang-tidy cannot correctly estimate the range of 'c' here.
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+        if (!isspace(c)) {
+            if (ungetc(c, in) == EOF) {
+                fprintf(stderr, "parse_whitespace: ungetc failed after a fgetc!\n");
+                return false;
+            }
+            return true;
         }
     }
-
-    return true;
 }
 
 static bool parse_token(FILE* in, token_t* token)

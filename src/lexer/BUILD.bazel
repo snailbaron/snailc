@@ -6,4 +6,5 @@ cc_binary(
         "*.c",
         "*.h",
     ]),
+    visibility = ["//visibility:public"],
 )
